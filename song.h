@@ -5,6 +5,9 @@
 #include <string>
 #include <iostream>
 
+namespace harm
+{
+
 struct Chord
 {
     Chord(int base, bool is_minor):
@@ -76,5 +79,7 @@ private:
     bool has_bridge_;
     bool ad_lib_;
 };
+
+} // namespace harm
 
 #endif // SONG_H

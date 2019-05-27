@@ -4,6 +4,8 @@
 #include <vector>
 #include <string>
 
+namespace harm
+{
 
 class StringSelector
 {
@@ -20,5 +22,7 @@ private:
     int count_;
     int seed_;
 };
+
+} // namespace harm
 
 #endif // STRINGSELECTOR_H

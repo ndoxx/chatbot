@@ -2,6 +2,8 @@
 #include <iostream>
 #include "stringselector.h"
 
+namespace harm
+{
 
 StringSelector::StringSelector(int seed):
 seed_(seed)
@@ -25,3 +27,5 @@ const std::string& StringSelector::generate_string()
 
     return strings_[choose(entropy)];
 }
+
+} // namespace harm

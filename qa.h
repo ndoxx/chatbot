@@ -3,6 +3,9 @@
 
 #include <string>
 
+namespace harm
+{
+
 class QA
 {
 public:
@@ -26,5 +29,7 @@ private:
     std::string user_answer_;
     bool yn_blocking_;
 };
+
+} // namespace harm
 
 #endif // QA_H

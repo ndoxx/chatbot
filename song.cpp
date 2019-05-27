@@ -3,6 +3,9 @@
 
 #include "song.h"
 
+namespace harm
+{
+
 static std::locale locc("C");
 
 static std::vector<std::string> tones   {"C", "Db", "D", "Eb", "E", "F", "Gb",  "G",  "Ab", "A", "Bb", "B"};
@@ -54,7 +57,7 @@ static std::string to_lower(const std::string& str)
 
 std::ostream& operator<<(std::ostream& stream, const Chord& chord)
 {
-    stream << (chord.is_minor ? to_lower(tones_fr[chord.base]) : tones_fr[chord.base]);
+    stream << (chord.is_minor ? to_lower(tones[chord.base]) : tones[chord.base]);
     return stream;
 }
 
@@ -154,3 +157,5 @@ void Song::display_block(std::ostream& stream, const std::vector<Chord>& pattern
         stream << std::endl;
     }
 }
+
+} // namespace harm

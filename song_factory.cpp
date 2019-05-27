@@ -1,5 +1,8 @@
 #include "song_factory.h"
 
+namespace harm
+{
+
 // Possible offsets for verse
 static std::vector<Step> first_chord_select_steps  = {"IV"_s, "VIb"_s, "III"_s, "I"_s};
 static std::vector<Step> second_chord_select_steps = {"//"_s, "IV"_s,  "VII"_s, "IIIb"_s};
@@ -17,11 +20,8 @@ static std::vector<Step> chorus_2_steps            = {"I"_s,  "ii"_s,  "iii"_s, 
 static std::vector<Step> forced_outro_steps        = {"i"_s,  "iv"_s,  "VII"_s, "III"_s, "VI"_s,  "II"_s, "V"_s, "I"_s,};
 // Offsets for bridge (if any)
 static std::vector<Step> bridge_steps              = {"V"_s,  "V"_s,   "V"_s,   "V"_s};
-
-static std::vector<std::string> structures =
-{
-    "VVVVVVVV", "CVCBVCVO", "IVCVCBCO", "IVCVCBVCO"
-};
+// Possible structures for the whole song
+static std::vector<std::string> structures = {"VVVVVVVV", "CVCBVCVO", "IVCVCBCO", "IVCVCBVCO" };
 
 SongFactory::SongFactory(int seed):
 entropy_(seed)
@@ -160,18 +160,26 @@ Song* SongFactory::generate_song(SongDescriptor& descriptor)
     generate_verse(a_song[Song::VERSE], descriptor);
 
     // * Generate intro
-    int intro_length = generate_intro(a_song[Song::INTRO], a_song[Song::VERSE], descriptor);
+    int intro_length = generate_intro(a_song[Song::INTRO],
+                                      a_song[Song::VERSE],
+                                      descriptor);
 
     // * Generate chorus
-    generate_chorus(a_song[Song::CHORUS], a_song[Song::VERSE], descriptor);
+    generate_chorus(a_song[Song::CHORUS],
+                    a_song[Song::VERSE],
+                    descriptor);
 
     // * Generate bridge (just copy a simple pattern ftm)
     std::copy(bridge_steps.begin(), bridge_steps.end(), std::back_inserter(a_song[Song::BRIDGE]));
 
     // * Generate outro
-    bool ad_lib = generate_outro(a_song[Song::OUTRO], a_song[Song::INTRO], a_song[Song::VERSE], a_song[Song::CHORUS], descriptor);
+    bool ad_lib = generate_outro(a_song[Song::OUTRO],
+                                 a_song[Song::INTRO],
+                                 a_song[Song::VERSE],
+                                 a_song[Song::CHORUS],
+                                 descriptor);
 
-    // * Structure
+    // * Select structure
     std::string& structure = structures[0];
     if(!descriptor.force_4_chords)
     {
@@ -188,3 +196,5 @@ Song* SongFactory::generate_song(SongDescriptor& descriptor)
                     descriptor.has_bridge,
                     ad_lib);
 }
+
+} // namespace harm

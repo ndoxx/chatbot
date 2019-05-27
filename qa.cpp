@@ -2,6 +2,9 @@
 
 #include "qa.h"
 
+namespace harm
+{
+
 QA::QA(const std::string& text,
        const std::string& on_yes,
        const std::string& on_no):
@@ -67,3 +70,5 @@ bool QA::pop()
 
     return false;
 }
+
+} // namespace harm

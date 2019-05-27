@@ -5,6 +5,9 @@
 
 #include "song.h"
 
+namespace harm
+{
+
 struct SongDescriptor
 {
     // Harmony
@@ -29,9 +32,11 @@ class SongFactory
 public:
     SongFactory(int seed);
 
+    // Create a song object from a descriptor (new)
     Song* generate_song(SongDescriptor& descriptor);
 
 protected:
+    // Auxiliary functions
     void generate_verse(std::vector<Step>& steps,
                         SongDescriptor& descriptor);
 
@@ -52,5 +57,7 @@ protected:
 private:
     std::default_random_engine entropy_;
 };
+
+} // namespace harm
 
 #endif // SONG_FACTORY_H
