@@ -14,6 +14,8 @@
 #include "qa.h"
 #include "hash.h"
 
+#define DBG_FORCE_DESCRIPTOR__
+
 struct SongDescriptor
 {
     // Harmony
@@ -179,7 +181,11 @@ void generate_verse(std::vector<Step>& steps, SongDescriptor& descriptor)
     else
     {
         steps.push_back(first_chord_select_steps[descriptor.first_chord]);
-        steps.push_back(second_chord_select_steps[descriptor.second_chord]);
+        auto&& second_chord = second_chord_select_steps[descriptor.second_chord];
+        if(second_chord.offset == -1)
+            steps.push_back(steps[0]);
+        else
+            steps.push_back(second_chord);
         steps.push_back(cadence_1_select_steps[descriptor.cadence]);
         steps.push_back(cadence_2_select_steps[descriptor.cadence]);
 
@@ -323,6 +329,7 @@ void parse_descriptor(SongDescriptor& descriptor, std::default_random_engine ent
     if(descriptor.force_4_chords)
     {
         display_block(verse_pattern, 32);
+        std::cout << "Segmentation fault (core dumped)               (just kidding)" << std::endl;
         return;
     }
 
@@ -379,6 +386,8 @@ void parse_descriptor(SongDescriptor& descriptor, std::default_random_engine ent
             case 'O':
                 std::cout << "[OUTRO]" << std::endl;
                 display_block(outro_pattern, 8);
+                if(ad_lib)
+                    std::cout << "ad lib";
                 std::cout << std::endl;
                 break;
         }
@@ -406,7 +415,9 @@ int main(int argc, char** argv)
 
     std::smatch m;
     SongDescriptor descriptor;
+    std::default_random_engine entropy(SEED);
 
+#ifndef DBG_FORCE_DESCRIPTOR__
     QA q1("Est-ce que tu regardes des émissions de télé avec Cyril Hanouna dedans qui présente, dis ?",
           "Quatre accords en tout pas plus !",
           "Tu es vaillant et hardi, comme les musiques tyroliennes.");
@@ -429,8 +440,6 @@ int main(int argc, char** argv)
     QA q8("J'ai presque fini de concocter votre suite d'accords. Il me faut ton autorisation pour tes données personnelles. Les utiliser, juste comme ça au cas où. Tape ton adresse email suivie du mot 'Oui' comme ça je te file une super suite d'accords !");
 
     QA q9("J'ai une suite d'accords non-aléatoire, de la bombe. Si tu veux fais-toi plaiz en écrivant \"SUITE AU 81212\".");
-
-    std::default_random_engine entropy(SEED);
 
     // * Troll a bit
     descriptor.force_4_chords = q1.pop();
@@ -565,9 +574,10 @@ int main(int argc, char** argv)
         if(!suite_ua.compare("SUITE AU 81212"))
             descriptor.force_verse = int(!suite_ua.compare("SUITE AU 81212"));
     }
-
+#endif
     // * ------------------------- PARSING -------------------------
-    /*descriptor.first_chord = 0;
+#ifdef DBG_FORCE_DESCRIPTOR__
+    descriptor.first_chord = 0;
     descriptor.second_chord = 2;
     descriptor.cadence = 1;
 
@@ -575,7 +585,8 @@ int main(int argc, char** argv)
     descriptor.minor = false;
     descriptor.has_bridge = true;
 
-    descriptor.force_4_chords = false;*/
+    descriptor.force_4_chords = true;
+#endif
 
     std::cout << std::endl
               << cb_invite << "Voici, je vous ai bricolé un truc trop fresh: "
