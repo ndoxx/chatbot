@@ -8,7 +8,8 @@
 A brain-dead implementation of a guitar tab generator, following the wild specifications of my dear friend Albert Tomas Onster.
 
 # Prerequisites
-No external dependency.
+* No external dependency.
+* CMake, version 3.1.0 or higher
 
 # Cloning and building
 >> git clone https://github.com/ndoxx/chatbot.git
@@ -19,7 +20,7 @@ No external dependency.
 
 >> make chatbot
 
-I lazily hard-wired CmakeLists.txt to use the Clang7 C++ compiler. Just comment/replace lines 3-21.
+I lazily hard-wired CmakeLists.txt to use the Clang7 C++ compiler. Just comment/replace lines 3-21 if needed. Your compiler must be able to handle C++17 code.
 
 # Usage
 "Wizard" mode:
