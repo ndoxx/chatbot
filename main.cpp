@@ -11,6 +11,7 @@
 #include <locale>
 
 #include <cstdint>
+#include <stdexcept>
 
 #include "stringselector.h"
 #include "qa.h"
@@ -22,6 +23,29 @@ using namespace harm;
 #define DBG_FORCE_DESCRIPTOR__
 
 static std::vector<int> fifths{0,5,10,3,8,1,6,11,4,9,2,7};
+
+void generate_random_descriptor(SongDescriptor& descriptor, std::default_random_engine& entropy)
+{
+    std::uniform_int_distribution<int> choose_2(0,1);
+    std::uniform_int_distribution<int> choose_4(0,3);
+    std::uniform_int_distribution<int> choose_12(0,11);
+    std::uniform_int_distribution<int> choose_20(0,19);
+
+    descriptor.first_chord = choose_4(entropy);
+    descriptor.second_chord = choose_4(entropy);
+    descriptor.cadence = choose_4(entropy);
+
+    descriptor.root = choose_12(entropy);
+    descriptor.minor = bool(choose_2(entropy));
+    descriptor.has_bridge = bool(choose_2(entropy));
+
+    descriptor.force_4_chords = bool(choose_12(entropy)==0);
+    descriptor.rythm_changes = bool(choose_12(entropy)==0);
+    descriptor.intro_is_root_x8 = bool(choose_12(entropy)==0);
+    descriptor.harmonic_march = bool(choose_12(entropy)==0);
+    descriptor.force_verse = (choose_12(entropy)==0 ? choose_2(entropy)+1 : 0);
+}
+
 
 // Helper functions to parse program arguments
 static const char* get_cmd_option(const char** begin, const char ** end, const std::string & option)
@@ -41,7 +65,7 @@ static bool cmd_option_exists(const char** begin, const char** end, const std::s
 
 enum class HMode: std::uint8_t
 {
-    QUIZZ,
+    WIZARD,
     RANDOM
 };
 
@@ -49,10 +73,24 @@ int main(int argc, const char** argv)
 {
     // * Parse program arguments
     HMode mode;
+    int n_songs = 1;
     if(cmd_option_exists(argv, argv + argc, "--random"))
         mode = HMode::RANDOM;
     else
-        mode = HMode::QUIZZ;
+        mode = HMode::WIZARD;
+
+    if(mode != HMode::WIZARD && cmd_option_exists(argv, argv + argc, "-n"))
+    {
+        const char* n_songs_c = get_cmd_option(argv, argv + argc, "-n");
+        try
+        {
+            n_songs = std::stoi(n_songs_c);
+        }
+        catch(const std::invalid_argument& e)
+        {
+            std::cerr << "Argument -n atteint d'une incapacité: " << e.what() << std::endl;
+        }
+    }
 
     // Random stuff (literally)
     typedef std::chrono::high_resolution_clock clk;
@@ -102,7 +140,7 @@ int main(int argc, const char** argv)
                   << std::endl;
     }
 
-    if(mode == HMode::QUIZZ)
+    if(mode == HMode::WIZARD)
     {
         QA q1("Est-ce que tu regardes des émissions de télé avec Cyril Hanouna dedans qui présente, dis ?",
               "Quatre accords en tout pas plus !",
@@ -258,48 +296,55 @@ int main(int argc, const char** argv)
             if(!suite_ua.compare("SUITE AU 81212"))
                 descriptor.force_verse = int(!suite_ua.compare("SUITE AU 81212"));
         }
+
+        // * ------------------------- PARSING -------------------------
+        std::cout << std::endl
+                  << cb_invite << "Voici, je vous ai bricolé un truc trop fresh: "
+                  << std::endl << std::endl;
+
+        SongFactory factory(SEED);
+        Song* song = factory.generate_song(descriptor);
+        song->display(std::cout);
+
+        std::cout << std::endl
+                  << "Joue ça et envoie ton résultat audio ou vidéo à Euterpex01@gmail.com !"
+                  << std::endl;
+        if(descriptor.email.size())
+        {
+            std::cout << "Un spam a été envoyé à l'adresse "
+                      << descriptor.email
+                      << " ! Merci de votre crédulité." << std::endl;
+        }
+
+        delete song;
     }
     else if(mode == HMode::RANDOM)
     {
-        std::uniform_int_distribution<int> choose_4(0,3);
-        std::uniform_int_distribution<int> choose_12(0,11);
-        std::uniform_int_distribution<int> choose_20(0,19);
+        // * Prepare N different song descriptors
+        std::map<std::size_t, SongDescriptor> descriptors;
+        while(descriptors.size()!=n_songs)
+        {
+            generate_random_descriptor(descriptor, entropy);
+            std::size_t h1 = std::hash<SongDescriptor>{}(descriptor);
+            if(descriptors.find(h1) == descriptors.end())
+                descriptors.insert(std::make_pair(h1, descriptor));
+        }
 
-        descriptor.first_chord = choose_4(entropy);
-        descriptor.second_chord = choose_4(entropy);
-        descriptor.cadence = choose_4(entropy);
-
-        descriptor.root = choose_12(entropy);
-        descriptor.minor = bool(choose_2(entropy));
-        descriptor.has_bridge = bool(choose_2(entropy));
-
-        descriptor.force_4_chords = bool(choose_20(entropy)==0);
-        descriptor.rythm_changes = bool(choose_12(entropy)==0);
-        descriptor.intro_is_root_x8 = bool(choose_12(entropy)==0);
-        descriptor.harmonic_march = bool(choose_12(entropy)==0);
-        descriptor.force_verse = (choose_12(entropy)==0 ? choose_2(entropy)+1 : 0);
+        // * Generate and display songs
+        SongFactory factory(SEED);
+        for(auto&& [key, desc]: descriptors)
+        {
+            std::cout << "op.42 No." << key << std::endl;
+            Song* song = factory.generate_song(desc);
+            song->display(std::cout);
+            std::cout << std::endl
+                      << "-------------------------------------------"
+                      << std::endl << std::endl;
+            delete song;
+        }
     }
 
-    // * ------------------------- PARSING -------------------------
-    std::cout << std::endl
-              << cb_invite << "Voici, je vous ai bricolé un truc trop fresh: "
-              << std::endl << std::endl;
 
-    SongFactory factory(SEED);
-    Song* song = factory.generate_song(descriptor);
-    song->display(std::cout);
-
-    std::cout << std::endl
-              << "Joue ça et envoie ton résultat audio ou vidéo à Euterpex01@gmail.com !"
-              << std::endl;
-    if(descriptor.email.size())
-    {
-        std::cout << "Un spam a été envoyé à l'adresse "
-                  << descriptor.email
-                  << " ! Merci de votre crédulité." << std::endl;
-    }
-
-    delete song;
     return 0;
 }
 

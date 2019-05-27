@@ -180,12 +180,14 @@ Song* SongFactory::generate_song(SongDescriptor& descriptor)
                                  descriptor);
 
     // * Select structure
-    std::string& structure = structures[0];
+    std::string structure;
     if(!descriptor.force_4_chords)
     {
         std::uniform_int_distribution<int> structure_type_dis(1,3);
         structure = structures[structure_type_dis(entropy_)];
     }
+    else
+        structure = structures[0];
 
     // * Generate song
     return new Song(a_song,

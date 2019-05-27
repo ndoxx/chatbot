@@ -4,6 +4,7 @@
 #include <random>
 
 #include "song.h"
+#include "hash.h"
 
 namespace harm
 {
@@ -59,5 +60,9 @@ private:
 };
 
 } // namespace harm
+
+MAKE_HASHABLE(harm::SongDescriptor, t.first_chord, t.second_chord, t.cadence, t.root, t.minor,
+              t.force_4_chords, t.rythm_changes, t.has_bridge, t.intro_is_root_x8, t.harmonic_march,
+              t.force_verse)
 
 #endif // SONG_FACTORY_H

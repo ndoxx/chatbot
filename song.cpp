@@ -108,38 +108,38 @@ void Song::display(std::ostream& stream)
         switch(structure_[ii])
         {
             case 'I':
-                std::cout << "[INTRO]" << std::endl;
+                std::cout << "    [INTRO]" << std::endl;
                 display_block(stream, intro_pattern_, intro_length_);
-                std::cout << std::endl;
+                //std::cout << std::endl;
                 break;
 
             case 'C':
-                std::cout << "[CHORUS]" << std::endl;
+                std::cout << "    [CHORUS]" << std::endl;
                 display_block(stream, chorus_pattern_, 4);
-                std::cout << std::endl;
+                //std::cout << std::endl;
                 break;
 
             case 'B':
                 if(has_bridge_)
                 {
-                    std::cout << "[BRIDGE]" << std::endl;
+                    std::cout << "    [BRIDGE]" << std::endl;
                     display_block(stream, bridge_pattern_, 4);
-                    std::cout << std::endl;
+                    //std::cout << std::endl;
                 }
                 break;
 
             case 'V':
-                std::cout << "[VERSE]" << std::endl;
+                std::cout << "    [VERSE]" << std::endl;
                 display_block(stream, verse_pattern_, 4);
-                std::cout << std::endl;
+                //std::cout << std::endl;
                 break;
 
             case 'O':
-                std::cout << "[OUTRO]" << std::endl;
+                std::cout << "    [OUTRO]" << std::endl;
                 display_block(stream, outro_pattern_, 8);
                 if(ad_lib_)
                     std::cout << "ad lib";
-                std::cout << std::endl;
+                //std::cout << std::endl;
                 break;
         }
     }
@@ -149,13 +149,10 @@ void Song::display(std::ostream& stream)
 
 void Song::display_block(std::ostream& stream, const std::vector<Chord>& pattern, int nrepeat)
 {
-    for(int ii=0; ii<nrepeat; ++ii)
-    {
-        stream << "| ";
-        for(int jj=0; jj<pattern.size(); ++jj)
-            stream << pattern[jj] << " | ";
-        stream << std::endl;
-    }
+    stream << "| ";
+    for(int jj=0; jj<pattern.size(); ++jj)
+        stream << pattern[jj] << " | ";
+    stream << " x" << nrepeat << std::endl;
 }
 
 } // namespace harm
