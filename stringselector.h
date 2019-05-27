@@ -1,3 +1,6 @@
+#ifndef STRINGSELECTOR_H
+#define STRINGSELECTOR_H
+
 #include <vector>
 #include <string>
 
@@ -17,3 +20,5 @@ private:
     int count_;
     int seed_;
 };
+
+#endif // STRINGSELECTOR_H

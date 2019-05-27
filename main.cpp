@@ -1,14 +1,18 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#include <unordered_map>
 #include <random>
 #include <chrono>
 #include <regex>
 #include <algorithm>
+#include <iterator>
 #include <cstring>
+#include <locale>
 
 #include "stringselector.h"
 #include "qa.h"
+#include "hash.h"
 
 struct SongDescriptor
 {
@@ -17,7 +21,7 @@ struct SongDescriptor
     int second_chord = 0;          // 0: =first_chord, 1: IV, 2: VII, 3: IIIb
     int cadence = 0;               // 0: root, 1: (V-i), 2: (iv-I), 3: (IIb-I)
     int root = 0;                  // root chord
-    bool minor = false;            // true: output is translated to relative minor
+    bool minor = false;            // true: song is minor, output is translated to relative minor
     // Structure
     bool force_4_chords = false;   // Whole song is 32x same 4 chords
     bool rythm_changes = false;    // Verse = Anatole en Do |C|a|d|G|
@@ -29,19 +33,86 @@ struct SongDescriptor
     std::string email;             // For profit
 };
 
-static int rythm_changes_offsets[8]{0, 9, 2, 7, 0, 9, 2, 7};
-static int forced_verse_1_offsets[8]{0, 5, 10, 3, 8, 7, 0, 7};
-static int forced_verse_2_offsets[8]{7, 0, 7, 0, 7, 0, 7, 0};
-static int first_chord_select[4]{5, 8, 4, 0};   // IV, 6b, III, I
-static int second_chord_select[4]{0, 5, 10, 3}; // 0 interpreted as "same as first chord", IV, VII, IIIb
-static int cadence_1_select[4]{0,7,5,1};        // I, V, iv, IIb
-static int cadence_2_select[4]{0,0,0,0};        // I, i, I, I
+struct Chord
+{
+    Chord(int base, bool is_minor):
+    base(base),
+    is_minor(is_minor)
+    {
 
-static int chorus_offsets_1[4]{7,0,7,0};
-static int chorus_offsets_2[4]{0,1,3,5};
+    }
 
-static int forced_outro_offsets[8]{0, 5, 10, 4, 9, 2, 7, 0}; // | i | iv | VII | III | VI | II | V | I
-static int bridge_offsets[4]{7, 7, 7, 7};
+    friend std::ostream& operator<<(std::ostream& stream, const Chord& chord);
+
+    int base;
+    bool is_minor;
+};
+
+struct Step
+{
+    Step(int offset, bool is_minor=false):
+    offset(offset),
+    is_minor(is_minor)
+    {
+
+    }
+
+    Chord to_chord(int root, bool song_is_minor)
+    {
+        // Compute actual chord, translate 3 steps down if song is minor
+        int base = (root + offset - (song_is_minor ? 3 : 0)) % 12;
+        // Wrap
+        if(base<0)
+            base += 12;
+
+        // Either the chord is already minor, or the song is minor and the step is I or IV
+        bool is_minor = is_minor || (song_is_minor && (offset==0 || offset==5));
+
+        return Chord(base, is_minor);
+    }
+
+    int offset;
+    bool is_minor;
+};
+
+static std::locale locc("C");
+
+bool is_lower(const std::string& str)
+{
+    for(int ii=0; ii<str.size(); ++ii)
+    {
+        if(!std::islower(str[ii], locc))
+            return false;
+    }
+    return true;
+}
+
+std::unordered_map<std::string, int> step_notation =
+{
+    {"//",  -1}, // Repeat previous bar
+    {"i",    0},
+    {"iib",  1},
+    {"ii",   2},
+    {"iiib", 3},
+    {"iii",  4},
+    {"iv",   5},
+    {"vb",   6},
+    {"v",    7},
+    {"vib",  8},
+    {"vi",   9},
+    {"vii",  10}
+};
+
+Step operator "" _s(const char* notation, size_t)
+{
+    std::string not_str(notation);
+    bool is_minor = is_lower(not_str);
+    // Force lower case
+    std::transform(not_str.begin(), not_str.end(), not_str.begin(), ::tolower);
+    int offset = step_notation[not_str];
+
+    return Step(offset, is_minor);
+}
 
 static std::vector<int> fifths{0,5,10,3,8,1,6,11,4,9,2,7};
 static std::vector<std::string> tones   {"C", "Db", "D", "Eb", "E", "F", "Gb",  "G",  "Ab", "A", "Bb", "B"};
@@ -54,78 +125,83 @@ std::string to_lower(const std::string& str)
     return ret;
 }
 
-int to_chord(int root, int offset, bool minor)
+std::ostream& operator<<(std::ostream& stream, const Chord& chord)
 {
-    int ret = (root + offset - (minor ? 3 : 0)) % 12;
-
-    if(ret<0)
-        ret += 12;
-
-    return ret;
+    stream << (chord.is_minor ? to_lower(tones_fr[chord.base]) : tones_fr[chord.base]);
+    return stream;
 }
 
-void display_block(int root, int* array, int array_sz, int nrepeat, bool minor)
+void display_block(const std::vector<Chord> pattern, int nrepeat)
 {
     for(int ii=0; ii<nrepeat; ++ii)
     {
         std::cout << "| ";
-        for(int jj=0; jj<array_sz; ++jj)
-        {
-            int chord = to_chord(root, array[jj], minor);
-
-            // if minor, force I and IV to i and iv
-            if(minor && (array[jj]==0 || array[jj]==5))
-                std::cout << to_lower(tones_fr[chord]);
-            else
-                std::cout << tones_fr[chord];
-            std::cout << " | ";
-        }
+        for(int jj=0; jj<pattern.size(); ++jj)
+            std::cout << pattern[jj] << " | ";
         std::cout << std::endl;
     }
 }
 
-void parse_descriptor(SongDescriptor& descriptor, std::default_random_engine entropy)
+// Possible offsets for verse
+static std::vector<Step> first_chord_select_steps  = {"IV"_s, "VIb"_s, "III"_s, "I"_s};
+static std::vector<Step> second_chord_select_steps = {"//"_s, "IV"_s,  "VII"_s, "IIIb"_s};
+static std::vector<Step> cadence_1_select_steps    = {"I"_s,  "V"_s,   "iv"_s,  "IIb"_s};
+static std::vector<Step> cadence_2_select_steps    = {"I"_s,  "i"_s,   "I"_s,   "I"_s};
+// Offsets for rythm changes type of song
+static std::vector<Step> rythm_changes_steps       = {"I"_s,  "vi"_s,  "ii"_s,  "V"_s};
+// Offsets for forced verses
+static std::vector<Step> forced_verse_1_steps      = {"I"_s,  "iv"_s,  "VII"_s, "iii"_s, "VIb"_s, "V"_s,  "I"_s, "V"_s,};
+static std::vector<Step> forced_verse_2_steps      = {"V"_s,  "i"_s,   "V"_s,   "i"_s,   "V"_s,   "i"_s,  "V"_s, "i"_s,};
+// Possible patterns for chorus
+static std::vector<Step> chorus_1_steps            = {"V"_s,  "i"_s,   "V"_s,   "i"_s};
+static std::vector<Step> chorus_2_steps            = {"I"_s,  "ii"_s,  "iii"_s, "IV"_s};
+// Offsets for forced outro (harmonic march)
+static std::vector<Step> forced_outro_steps        = {"i"_s,  "iv"_s,  "VII"_s, "III"_s, "VI"_s,  "II"_s, "V"_s, "I"_s,};
+// Offsets for bridge (if any)
+static std::vector<Step> bridge_steps              = {"V"_s,  "V"_s,   "V"_s,   "V"_s};
+
+
+void generate_verse(std::vector<Step>& steps, SongDescriptor& descriptor)
 {
-    // * Generate verse
-    int verse_offsets[8];
     if(descriptor.rythm_changes)
     {
         descriptor.minor = false;
         descriptor.root = 0;
-        memcpy(verse_offsets, rythm_changes_offsets, 8*sizeof(int));
+        std::copy(rythm_changes_steps.begin(), rythm_changes_steps.end(), std::back_inserter(steps));
     }
     else if(descriptor.force_verse)
     {
         if(descriptor.force_verse == 1)
-            memcpy(verse_offsets, forced_verse_1_offsets, 8*sizeof(int));
+            std::copy(forced_verse_1_steps.begin(), forced_verse_1_steps.end(), std::back_inserter(steps));
         if(descriptor.force_verse == 2)
-            memcpy(verse_offsets, forced_verse_2_offsets, 8*sizeof(int));
+            std::copy(forced_verse_2_steps.begin(), forced_verse_2_steps.end(), std::back_inserter(steps));
     }
     else
     {
-        verse_offsets[0] = first_chord_select[descriptor.first_chord];
-        verse_offsets[1] = second_chord_select[descriptor.second_chord];
-        verse_offsets[2] = cadence_1_select[descriptor.cadence];
-        verse_offsets[3] = cadence_2_select[descriptor.cadence];
+        steps.push_back(first_chord_select_steps[descriptor.first_chord]);
+        steps.push_back(second_chord_select_steps[descriptor.second_chord]);
+        steps.push_back(cadence_1_select_steps[descriptor.cadence]);
+        steps.push_back(cadence_2_select_steps[descriptor.cadence]);
 
         // Repeat 4 bars
         for(int ii=0; ii<4; ++ii)
-            verse_offsets[4+ii] = verse_offsets[ii];
+            steps.push_back(steps[ii]);
     }
+}
 
-    if(descriptor.force_4_chords)
-    {
-        display_block(descriptor.root, verse_offsets, 4, 4, descriptor.minor);
-        return;
-    }
-
-    // * Generate intro
-    int intro_offsets[4];
+int generate_intro(std::vector<Step>& steps,
+                   const std::vector<Step>& verse,
+                   SongDescriptor& descriptor,
+                   std::default_random_engine entropy)
+{
     int intro_length = 1;
+
     if(descriptor.intro_is_root_x8)
     {
         for(int ii=0; ii<4; ++ii)
-            intro_offsets[ii] = 0;
+            steps.push_back("I"_s);
+
+        intro_length = 2;
     }
     else
     {
@@ -134,39 +210,52 @@ void parse_descriptor(SongDescriptor& descriptor, std::default_random_engine ent
         bool intro_type = bool(intro_type_dis(entropy));
         intro_length = intro_len_dis(entropy)+1;
 
-        intro_offsets[0] = intro_type ? verse_offsets[0] : verse_offsets[0];
-        intro_offsets[1] = intro_type ? verse_offsets[1] : verse_offsets[0];
-        intro_offsets[2] = intro_type ? verse_offsets[0] : verse_offsets[1];
-        intro_offsets[3] = intro_type ? verse_offsets[1] : verse_offsets[1];
+        steps.push_back(verse[0]);
+        steps.push_back(intro_type ? verse[1] : verse[0]);
+        steps.push_back(intro_type ? verse[0] : verse[1]);
+        steps.push_back(verse[1]);
     }
 
-    // * Generate chorus
+    return intro_length;
+}
+
+void generate_chorus(std::vector<Step>& steps,
+                     const std::vector<Step>& verse,
+                     SongDescriptor& descriptor,
+                     std::default_random_engine entropy)
+{
     std::uniform_int_distribution<int> chorus_type_dis(0,2);
     int chorus_type = chorus_type_dis(entropy);
-    int chorus_offsets[4];
     switch(chorus_type)
     {
         case 0:
-            memcpy(chorus_offsets, chorus_offsets_1, 4*sizeof(int));
+            std::copy(chorus_1_steps.begin(), chorus_1_steps.end(), std::back_inserter(steps));
             break;
 
         case 1:
-            chorus_offsets[0] = verse_offsets[2];
-            chorus_offsets[1] = verse_offsets[3];
-            chorus_offsets[2] = verse_offsets[2];
-            chorus_offsets[3] = verse_offsets[3];
+            steps.push_back(verse[2]);
+            steps.push_back(verse[3]);
+            steps.push_back(verse[2]);
+            steps.push_back(verse[3]);
             break;
 
         case 2:
-            memcpy(chorus_offsets, chorus_offsets_2, 4*sizeof(int));
+            std::copy(chorus_2_steps.begin(), chorus_2_steps.end(), std::back_inserter(steps));
             break;
     }
+}
 
-    // * Generate outro
+bool generate_outro(std::vector<Step>& steps,
+                    const std::vector<Step>& intro,
+                    const std::vector<Step>& verse,
+                    const std::vector<Step>& chorus,
+                    SongDescriptor& descriptor,
+                    std::default_random_engine entropy)
+{
     bool chorus_ad_lib = false;
-    int outro_offsets[8];
+
     if(descriptor.harmonic_march)
-        memcpy(outro_offsets, forced_outro_offsets, 8*sizeof(int));
+        std::copy(forced_outro_steps.begin(), forced_outro_steps.end(), std::back_inserter(steps));
     else
     {
         std::uniform_int_distribution<int> outro_type_dis(0,2);
@@ -175,18 +264,66 @@ void parse_descriptor(SongDescriptor& descriptor, std::default_random_engine ent
         {
             case 0:
                 for(int ii=0; ii<8; ++ii)
-                    outro_offsets[ii] = intro_offsets[ii%4];
+                    steps.push_back(intro[ii%4]);
                 break;
             case 1:
                 for(int ii=0; ii<8; ++ii)
-                    outro_offsets[ii] = verse_offsets[ii];
+                    steps.push_back(verse[ii]);
                 break;
             case 2:
                 for(int ii=0; ii<8; ++ii)
-                    outro_offsets[ii] = chorus_offsets[ii%4];
+                    steps.push_back(chorus[ii%4]);
                 chorus_ad_lib = true;
                 break;
         }
+    }
+
+    return chorus_ad_lib;
+}
+
+void parse_descriptor(SongDescriptor& descriptor, std::default_random_engine entropy)
+{
+    std::vector<Step> intro_steps,
+                      chorus_steps,
+                      verse_steps,
+                      outro_steps;
+
+    // * Generate verse
+    generate_verse(verse_steps, descriptor);
+
+    // * Generate intro
+    int intro_length = generate_intro(intro_steps, verse_steps, descriptor, entropy);
+
+    // * Generate chorus
+    generate_chorus(chorus_steps, verse_steps, descriptor, entropy);
+
+    // * Generate outro
+    bool ad_lib = generate_outro(outro_steps, intro_steps, verse_steps, chorus_steps, descriptor, entropy);
+
+    // * Convert to actual chords
+    std::vector<Chord> intro_pattern,
+                       chorus_pattern,
+                       verse_pattern,
+                       bridge_pattern,
+                       outro_pattern;
+
+    for(int ii=0; ii<8; ++ii)
+    {
+        if(ii<4)
+        {
+            intro_pattern.push_back(intro_steps[ii].to_chord(descriptor.root, descriptor.minor));
+            chorus_pattern.push_back(chorus_steps[ii].to_chord(descriptor.root, descriptor.minor));
+            bridge_pattern.push_back(bridge_steps[ii].to_chord(descriptor.root, descriptor.minor));
+        }
+        verse_pattern.push_back(verse_steps[ii].to_chord(descriptor.root, descriptor.minor));
+        outro_pattern.push_back(outro_steps[ii].to_chord(descriptor.root, descriptor.minor));
+    }
+
+    // * Stop here if only 4 chords need to be displayed
+    if(descriptor.force_4_chords)
+    {
+        display_block(verse_pattern, 32);
+        return;
     }
 
     // * Structure
@@ -214,13 +351,13 @@ void parse_descriptor(SongDescriptor& descriptor, std::default_random_engine ent
         {
             case 'I':
                 std::cout << "[INTRO]" << std::endl;
-                display_block(descriptor.root, intro_offsets, 4, intro_length, descriptor.minor);
+                display_block(intro_pattern, intro_length);
                 std::cout << std::endl;
                 break;
 
             case 'C':
                 std::cout << "[CHORUS]" << std::endl;
-                display_block(descriptor.root, chorus_offsets, 4, 4, descriptor.minor);
+                display_block(chorus_pattern, 4);
                 std::cout << std::endl;
                 break;
 
@@ -228,20 +365,20 @@ void parse_descriptor(SongDescriptor& descriptor, std::default_random_engine ent
                 if(descriptor.has_bridge)
                 {
                     std::cout << "[BRIDGE]" << std::endl;
-                    display_block(descriptor.root, bridge_offsets, 4, 1, descriptor.minor);
+                    display_block(bridge_pattern, 4);
                     std::cout << std::endl;
                 }
                 break;
 
             case 'V':
                 std::cout << "[VERSE]" << std::endl;
-                display_block(descriptor.root, verse_offsets, 8, 4, descriptor.minor);
+                display_block(verse_pattern, 4);
                 std::cout << std::endl;
                 break;
 
             case 'O':
                 std::cout << "[OUTRO]" << std::endl;
-                display_block(descriptor.root, outro_offsets, 8, 4, descriptor.minor);
+                display_block(outro_pattern, 8);
                 std::cout << std::endl;
                 break;
         }
@@ -295,10 +432,11 @@ int main(int argc, char** argv)
 
     std::default_random_engine entropy(SEED);
 
+    // * Troll a bit
     descriptor.force_4_chords = q1.pop();
     q2.pop();
 
-    // * Sélection de la note de la première mesure
+    // * Select verse first chord
     if(q3.pop())
     {
         std::uniform_int_distribution<int> choose(0,2);
@@ -322,7 +460,7 @@ int main(int argc, char** argv)
         descriptor.first_chord = 3;
     }
 
-    // * Sélection de la cadence du verse
+    // * Select verse cadence
     q4.pop();
     auto&& chord_ua = q4.get_user_answer();
 
@@ -361,7 +499,7 @@ int main(int argc, char** argv)
             break;
     }
 
-    // * Anatole en Do ou bien modif fdtl
+    // * Rythm changes (C) or root chord pattern
     while(true)
     {
         q5.pop();
@@ -397,7 +535,7 @@ int main(int argc, char** argv)
     else
         descriptor.harmonic_march = true;
 
-    // * Second tone
+    // * Select verse second chord
     if(q7.pop())
     {
         std::uniform_int_distribution<int> choose(1,3);
@@ -425,9 +563,8 @@ int main(int argc, char** argv)
         q9.pop();
         auto&& suite_ua = q9.get_user_answer();
         if(!suite_ua.compare("SUITE AU 81212"))
-            descriptor.force_verse = true;
+            descriptor.force_verse = int(!suite_ua.compare("SUITE AU 81212"));
     }
-
 
     // * ------------------------- PARSING -------------------------
     /*descriptor.first_chord = 0;
@@ -435,10 +572,14 @@ int main(int argc, char** argv)
     descriptor.cadence = 1;
 
     descriptor.root = 0;
-    descriptor.minor = true;
+    descriptor.minor = false;
     descriptor.has_bridge = true;
 
     descriptor.force_4_chords = false;*/
+
+    std::cout << std::endl
+              << cb_invite << "Voici, je vous ai bricolé un truc trop fresh: "
+              << std::endl << std::endl;
 
     parse_descriptor(descriptor, entropy);
 

@@ -5,8 +5,11 @@ CVC[B]VCVO
 IVCVC[B]CO
 IVCVC[B]VCO
 
+enrichissements :
+1:Maj,2:min, 3:7,4:sus4,5:°,6:+,7:▲,8:-7,9:min6
 
-I:0,II:2, iii:3,III:4,IV:5,V:7,6b:8,VI:9,VII:10
+per-step offsets :
+I:0,II:2, iii:3,III:4,IV:5,V:7,VIb:8,VI:9,VII:10
 
 ```cpp
 struct SongDescriptor

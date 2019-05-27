@@ -1,3 +1,6 @@
+#ifndef QA_H
+#define QA_H
+
 #include <string>
 
 class QA
@@ -23,3 +26,5 @@ private:
     std::string user_answer_;
     bool yn_blocking_;
 };
+
+#endif // QA_H
