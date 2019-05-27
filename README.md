@@ -12,8 +12,11 @@ No external dependency.
 
 # Cloning and building
 >> git clone https://github.com/ndoxx/chatbot.git
+
 >> mkdir build; cd build
+
 >> cmake ..
+
 >> make chatbot
 
 I lazily hard-wired CmakeLists.txt to use the Clang7 C++ compiler. Just comment/replace lines 3-21.
