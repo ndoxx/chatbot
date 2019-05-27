@@ -10,6 +10,8 @@ set(CMAKE_BUILD_TYPE RelWithDebInfo)
 set(chatbot_SRCS
     main.cpp
     stringselector.cpp
+    song.cpp
+    song_factory.cpp
     qa.cpp
 )
 
